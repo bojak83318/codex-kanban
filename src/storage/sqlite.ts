@@ -87,6 +87,18 @@ export class SQLiteKanbanStore implements KanbanStore {
     }));
   }
 
+  logStagingDeployAudit(
+    actor: Actor,
+    cardId: string,
+    targetEnv: string,
+    ticketId: string,
+  ): void {
+    this.logAudit("staging_deploy_requested", actor, cardId, {
+      target_env: targetEnv,
+      ticket_id: ticketId,
+    });
+  }
+
   transitionCard(cardId: string, actor: Actor, payload: unknown): Card {
     const request = validateTransitionRequest(payload);
     const transitionOperation = this.db.transaction(() => {

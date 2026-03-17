@@ -252,6 +252,18 @@ export class InMemoryKanbanStore implements KanbanStore {
     return this.state.audit.map((entry) => structuredClone(entry));
   }
 
+  logStagingDeployAudit(
+    actor: Actor,
+    cardId: string,
+    targetEnv: string,
+    ticketId: string,
+  ): void {
+    this.logAudit("staging_deploy_requested", actor, cardId, {
+      target_env: targetEnv,
+      ticket_id: ticketId,
+    });
+  }
+
   private logAudit(
     event: AuditEventType,
     actor: Actor,
@@ -451,6 +463,12 @@ export interface KanbanStore {
   listCards(filters: { agentId?: string; columns?: string[] }): Card[];
   getCard(cardId: string): Card;
   getAudits(): AuditRecord[];
+  logStagingDeployAudit(
+    actor: Actor,
+    cardId: string,
+    targetEnv: string,
+    ticketId: string,
+  ): void;
   transitionCard(cardId: string, actor: Actor, payload: unknown): Card;
   addSignal(cardId: string, actor: Actor, payload: unknown): SignalRecord;
   ackCard(cardId: string, actor: Actor, payload: unknown): AckRecord;

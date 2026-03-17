@@ -1,5 +1,5 @@
 import { HttpError, type KanbanStore } from "../store.js";
-import type { Actor, AuditEventType } from "../types.js";
+import type { Actor } from "../types.js";
 
 export interface StagingDeployRequest {
   card_id: string;
@@ -53,30 +53,14 @@ export class MCPSecretsServerStub {
       ticket_id: `stg_${card.id}_${Date.now()}`,
     };
 
-    this.appendAudit(actor, card.id, request.target_env, ticket.ticket_id);
+    this.store.logStagingDeployAudit(
+      actor,
+      card.id,
+      request.target_env,
+      ticket.ticket_id,
+    );
 
     return ticket;
-  }
-
-  private appendAudit(
-    actor: Actor,
-    cardId: string,
-    targetEnv: string,
-    ticketId: string,
-  ): void {
-    const storeWithAudit = this.store as KanbanStore & {
-      logAudit?: (
-        event: AuditEventType,
-        auditActor: Actor,
-        auditCardId: string | undefined,
-        details: Record<string, unknown>,
-      ) => void;
-    };
-
-    storeWithAudit.logAudit?.("staging_deploy_requested", actor, cardId, {
-      target_env: targetEnv,
-      ticket_id: ticketId,
-    });
   }
 
   private validateRequest(payload: unknown): Required<StagingDeployRequest> {

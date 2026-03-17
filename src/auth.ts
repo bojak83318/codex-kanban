@@ -4,15 +4,16 @@ import { HttpError } from "./store.js";
 
 const BEARER_PREFIX = /^Bearer\s+(.+)$/i;
 
-function requireJwtSecretFromEnv(): string {
-  const jwtSecret = process.env.KANBAN_JWT_SECRET;
+function readJwtSecretFromEnv(): string | undefined {
+  return process.env.KANBAN_JWT_SECRET;
+}
+
+function requireJwtSecret(jwtSecret: string | undefined): string {
   if (!jwtSecret) {
     throw new Error("KANBAN_JWT_SECRET must be set");
   }
   return jwtSecret;
 }
-
-const JWT_SECRET = requireJwtSecretFromEnv();
 
 interface JwtPayload {
   sub: string;
@@ -81,11 +82,8 @@ function signJwt(actor: Actor, secret: string): string {
 export class TokenRegistry {
   private readonly jwtSecret: string;
 
-  constructor(jwtSecret: string) {
-    if (!jwtSecret) {
-      throw new Error("JWT secret cannot be empty");
-    }
-    this.jwtSecret = jwtSecret;
+  constructor(jwtSecret: string | undefined) {
+    this.jwtSecret = requireJwtSecret(jwtSecret);
   }
 
   ensure(actorToken: string | undefined): Actor {
@@ -112,14 +110,14 @@ const DEFAULT_AGENT_ID = process.env.KANBAN_AGENT_ID ?? "agent-42";
 const DEFAULT_HUMAN_ID = process.env.KANBAN_HUMAN_ID ?? "reviewer-1";
 
 export function buildTokenRegistryFromEnv(): TokenRegistry {
-  return new TokenRegistry(JWT_SECRET);
+  return new TokenRegistry(readJwtSecretFromEnv());
 }
 
 export const DEFAULT_AGENT_TOKEN_VALUE = signJwt(
   { kind: "agent", id: DEFAULT_AGENT_ID },
-  JWT_SECRET,
+  readJwtSecretFromEnv() ?? "missing-kanban-jwt-secret",
 );
 export const DEFAULT_HUMAN_TOKEN_VALUE = signJwt(
   { kind: "human", id: DEFAULT_HUMAN_ID },
-  JWT_SECRET,
+  readJwtSecretFromEnv() ?? "missing-kanban-jwt-secret",
 );
