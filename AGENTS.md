@@ -9,3 +9,6 @@
 - Secrets-gated tools must not be callable from sub-agents outside the integration column.
 - self_veto signals must immediately freeze the session — no further tool calls after emission.
 - Attempt creation must reject duplicate branch names and worktree paths.
+
+## Phase 7 status
+- Phase 7 - Final Acceptance Review complete (verification-only work is done).

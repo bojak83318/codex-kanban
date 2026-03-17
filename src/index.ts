@@ -24,4 +24,9 @@ export {
   type ParallelExecutionConfig,
 } from "./orchestrator/multi-agent.js";
 
+export {
+  NoopOrchestratorInstrumentation,
+  type OrchestratorInstrumentation,
+} from "./orchestrator/instrumentation.js";
+
 export { MCPSecretsServerStub, type StagingDeployRequest, type StagingDeployTicket } from "./mcp/secrets-server.js";

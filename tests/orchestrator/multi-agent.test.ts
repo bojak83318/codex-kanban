@@ -155,4 +155,37 @@ describe("multi-agent orchestration", () => {
     );
     expect(globalResults.every((entry) => entry.blockedBy === "all")).toBe(true);
   });
+
+  test("executor is never invoked for vetoed cards", async () => {
+    const cards = [
+      seedReviewedCard(1, "human_review"),
+      seedReviewedCard(2, "integration"),
+      seedReviewedCard(3, "human_review"),
+      seedReviewedCard(4, "integration"),
+      seedReviewedCard(5, "human_review"),
+    ];
+    const store = new InMemoryKanbanStore(cards);
+    const orchestrator = new MultiAgentOrchestrator(store);
+    const human = { kind: "human" as const, id: "reviewer-1" };
+
+    store.applyBoardVeto(human, { reason: "freeze integration", scope: "column:integration" });
+    store.applyBoardVeto(human, { reason: "freeze agent 3", scope: "agent:agent-3" });
+
+    const executed: string[] = [];
+    const results = await orchestrator.runParallelAgents(
+      { cardIds: cards.map((card) => card.id) },
+      async (plan) => {
+        executed.push(plan.cardId);
+      },
+    );
+
+    expect(results.find((entry) => entry.cardId === "T-2")?.status).toBe("blocked_by_veto");
+    expect(results.find((entry) => entry.cardId === "T-4")?.blockedBy).toBe("column:integration");
+    expect(results.find((entry) => entry.cardId === "T-3")?.blockedBy).toBe("agent:agent-3");
+    expect(executed).toHaveLength(2);
+    expect(executed).not.toContain("T-2");
+    expect(executed).not.toContain("T-3");
+    expect(executed).not.toContain("T-4");
+    expect(executed).toEqual(expect.arrayContaining(["T-1", "T-5"]));
+  });
 });

@@ -14,6 +14,10 @@ import {
   generateSingleAgentInstructionTemplate,
 } from "./single-agent.js";
 import { buildSingleAgentWorktreeSpec, worktreeCreationCommands } from "./worktree.js";
+import {
+  NoopOrchestratorInstrumentation,
+  type OrchestratorInstrumentation,
+} from "./instrumentation.js";
 
 export interface AttemptBranchConfig {
   parentCardId: string;
@@ -63,6 +67,7 @@ export class MultiAgentOrchestrator {
   constructor(
     private readonly store: KanbanStore,
     private readonly notifier: HOTLNotifierStub = new HOTLNotifierStub(),
+    private readonly instrumentation: OrchestratorInstrumentation = new NoopOrchestratorInstrumentation(),
   ) {}
 
   createAttemptBranchPlan(config: AttemptBranchConfig): AttemptBranchPlan {
@@ -116,6 +121,13 @@ export class MultiAgentOrchestrator {
       } satisfies MultiAgentSpawnPlan;
     });
 
+    this.instrumentation.recordAttemptBranchCreated?.({
+      parentCardId: config.parentCardId,
+      agentId: config.agentId,
+      attemptCardIds: attempts.map((attempt) => attempt.cardId),
+      strategies: config.strategies,
+    });
+
     return {
       parentCardId: config.parentCardId,
       attempts,
@@ -130,6 +142,11 @@ export class MultiAgentOrchestrator {
       throw new Error("Parallel orchestration requires at least 5 cards");
     }
 
+    this.instrumentation.recordParallelExecutionStarted?.({
+      cardIds: [...config.cardIds],
+      parallelism: config.cardIds.length,
+    });
+
     const notifier = config.notifier ?? this.notifier;
 
     return Promise.all(
@@ -137,6 +154,11 @@ export class MultiAgentOrchestrator {
         const card = this.store.getCard(cardId);
         const blockScope = this.findBlockingVeto(card);
         if (blockScope) {
+          this.instrumentation.recordVetoBlockedExecution?.({
+            cardId,
+            agentId: card.owner_agent_id,
+            vetoScope: blockScope,
+          });
           return {
             cardId,
             agentId: card.owner_agent_id,
@@ -192,20 +214,41 @@ export class MultiAgentOrchestrator {
           transitionPayload,
         };
 
+        if (plan.transitionPayload) {
+          this.instrumentation.recordHumanReviewTransition?.({
+            cardId: plan.cardId,
+            agentId: card.owner_agent_id,
+            attemptIndex: plan.lineage.attemptIndex,
+            transition: plan.transitionPayload,
+          });
+        }
+
+        const transitionRecord = transitionPayload
+          ? {
+              at: new Date().toISOString(),
+              actor: { kind: "agent", id: card.owner_agent_id },
+              from: transitionPayload.from_column,
+              to: transitionPayload.to_column,
+              decision_summary: transitionPayload.decision_summary,
+              artifacts: transitionPayload.artifacts ?? {},
+            }
+          : null;
+
         await execute(plan);
-        const notification = transitionPayload
+        const notification = transitionRecord
           ? notifier.notifyHumanReview(
               { ...card, column: "human_review" },
-              {
-                at: new Date().toISOString(),
-                actor: { kind: "agent", id: card.owner_agent_id },
-                from: transitionPayload.from_column,
-                to: transitionPayload.to_column,
-                decision_summary: transitionPayload.decision_summary,
-                artifacts: transitionPayload.artifacts ?? {},
-              },
+              transitionRecord,
             )
           : undefined;
+
+        if (notification && transitionRecord) {
+          this.instrumentation.recordHotlNotification?.({
+            cardId,
+            notification,
+            transition: transitionRecord,
+          });
+        }
         return {
           cardId,
           agentId: card.owner_agent_id,

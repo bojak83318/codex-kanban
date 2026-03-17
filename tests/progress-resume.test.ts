@@ -29,6 +29,10 @@ test("resumeFromProgressMd builds a resume plan with the NEXT_ACTION queue", () 
   expect(resumePlan.done).toContain("Set up the MVP API scaffolding");
   expect(resumePlan.nextAction).toBe("Add JWT middleware to /transition");
   expect(resumePlan.nextActionQueue).toHaveLength(2);
+  expect(resumePlan.done).toEqual(["Set up the MVP API scaffolding"]);
+  expect(resumePlan.inProgress).toEqual(["Wire the cards/transition routes"]);
+  expect(resumePlan.nextActionQueue[0]).toBe("Add JWT middleware to /transition");
+  expect(resumePlan.nextActionQueue[1]).toBe("Capture compaction event context");
 });
 
 test("resumeFromParsedProgress requires at least one NEXT_ACTION entry", () => {
