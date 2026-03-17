@@ -41,7 +41,7 @@ export interface MultiAgentSpawnPlan {
   };
   creationCommands: string[];
   instructions: string;
-  transitionPayload: TransitionRequest;
+  transitionPayload: TransitionRequest | null;
 }
 
 export interface MultiAgentRunResult {
@@ -145,8 +145,8 @@ export class MultiAgentOrchestrator {
           } satisfies MultiAgentRunResult;
         }
 
-        const transition = this.findLatestHumanReviewTransition(card);
-        if (!transition) {
+        const existingHumanReviewTransition = this.findLatestHumanReviewTransition(card);
+        if (card.column !== "in_progress" && !existingHumanReviewTransition) {
           throw new HttpError(409, `Card ${card.id} does not have a human_review transition`);
         }
 
@@ -161,6 +161,17 @@ export class MultiAgentOrchestrator {
           branchName: card.branch ?? fallbackSpec.branchName,
           worktreePath: card.worktree_path ?? fallbackSpec.worktreePath,
         };
+
+        const transitionPayload = card.column === "in_progress"
+          ? buildHumanReviewTransitionPayload(spec, {
+              decisionSummary: buildAttemptDecisionSummary(
+                card,
+                card.strategy ?? "direct_impl",
+                card.attempt_index ?? 1,
+              ),
+              artifactOverrides: buildAttemptArtifacts(card, spec.branchName, spec.worktreePath),
+            })
+          : null;
 
         const plan: MultiAgentSpawnPlan = {
           cardId: card.id,
@@ -178,17 +189,22 @@ export class MultiAgentOrchestrator {
             securityRules: [],
             additionalNotes: "Parallel multi-agent execution",
           }),
-          transitionPayload: {
-            from_column: transition.from,
-            to_column: transition.to,
-            decision_summary: transition.decision_summary,
-            artifacts: transition.artifacts,
-          },
+          transitionPayload,
         };
 
         await execute(plan);
-        const notification = card.column === "human_review"
-          ? notifier.notifyHumanReview(card, transition)
+        const notification = transitionPayload
+          ? notifier.notifyHumanReview(
+              { ...card, column: "human_review" },
+              {
+                at: new Date().toISOString(),
+                actor: { kind: "agent", id: card.owner_agent_id },
+                from: transitionPayload.from_column,
+                to: transitionPayload.to_column,
+                decision_summary: transitionPayload.decision_summary,
+                artifacts: transitionPayload.artifacts ?? {},
+              },
+            )
           : undefined;
         return {
           cardId,
