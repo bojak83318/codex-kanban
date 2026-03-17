@@ -129,7 +129,12 @@ export interface BoardVeto {
   scope: string;
 }
 
-export type AuditEventType = "transition" | "signal" | "ack" | "veto";
+export type AuditEventType =
+  | "transition"
+  | "signal"
+  | "ack"
+  | "veto"
+  | "staging_deploy_requested";
 
 export interface AuditRecord {
   at: string;

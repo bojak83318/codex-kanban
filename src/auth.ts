@@ -3,7 +3,16 @@ import type { Actor } from "./types.js";
 import { HttpError } from "./store.js";
 
 const BEARER_PREFIX = /^Bearer\s+(.+)$/i;
-const DEV_JWT_SECRET = process.env.KANBAN_JWT_SECRET ?? "kanban-dev-secret";
+
+function requireJwtSecretFromEnv(): string {
+  const jwtSecret = process.env.KANBAN_JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error("KANBAN_JWT_SECRET must be set");
+  }
+  return jwtSecret;
+}
+
+const JWT_SECRET = requireJwtSecretFromEnv();
 
 interface JwtPayload {
   sub: string;
@@ -103,14 +112,14 @@ const DEFAULT_AGENT_ID = process.env.KANBAN_AGENT_ID ?? "agent-42";
 const DEFAULT_HUMAN_ID = process.env.KANBAN_HUMAN_ID ?? "reviewer-1";
 
 export function buildTokenRegistryFromEnv(): TokenRegistry {
-  return new TokenRegistry(DEV_JWT_SECRET);
+  return new TokenRegistry(JWT_SECRET);
 }
 
 export const DEFAULT_AGENT_TOKEN_VALUE = signJwt(
   { kind: "agent", id: DEFAULT_AGENT_ID },
-  DEV_JWT_SECRET,
+  JWT_SECRET,
 );
 export const DEFAULT_HUMAN_TOKEN_VALUE = signJwt(
   { kind: "human", id: DEFAULT_HUMAN_ID },
-  DEV_JWT_SECRET,
+  JWT_SECRET,
 );
