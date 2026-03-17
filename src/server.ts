@@ -3,6 +3,7 @@ import { URL } from "node:url";
 import { HttpError, InMemoryKanbanStore, type KanbanStore } from "./store.js";
 import { buildTokenRegistryFromEnv, type TokenRegistry } from "./auth.js";
 import type { Actor, Card } from "./types.js";
+import { MCPSecretsServerStub } from "./mcp/secrets-server.js";
 
 function json(response: ServerResponse, statusCode: number, payload: unknown): void {
   response.statusCode = statusCode;
@@ -50,6 +51,7 @@ export interface AppOptions {
 export function createApp(options: AppOptions = {}) {
   const store: KanbanStore = options.store ?? new InMemoryKanbanStore();
   const auth = options.auth ?? buildTokenRegistryFromEnv();
+  const secretsServer = new MCPSecretsServerStub(store);
 
   const server = createServer(async (request, response) => {
     if (!request.url || !request.method) {
@@ -108,6 +110,15 @@ export function createApp(options: AppOptions = {}) {
         const body = await readJsonBody(request);
         const attemptCard = store.createAttempt(attemptMatch[1], actor, body);
         json(response, 201, { card: serializeCard(attemptCard) });
+        return;
+      }
+
+
+      if (request.method === "POST" && pathname === "/api/v1/mcp/request_staging_deploy") {
+        const actor = parseActor(request, auth);
+        const body = await readJsonBody(request);
+        const ticket = secretsServer.requestStagingDeploy(actor, body);
+        json(response, 202, { ticket });
         return;
       }
 

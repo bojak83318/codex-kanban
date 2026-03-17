@@ -70,6 +70,10 @@ export class SQLiteKanbanStore implements KanbanStore {
     return rows.map((row: any) => this.buildCardFromRow(row));
   }
 
+  getCard(cardId: string): Card {
+    return this.buildCard(cardId);
+  }
+
   getAudits(): AuditRecord[] {
     const rows = this.db
       .prepare("SELECT * FROM audit_events ORDER BY id ASC")
@@ -87,6 +91,7 @@ export class SQLiteKanbanStore implements KanbanStore {
     const request = validateTransitionRequest(payload);
     const transitionOperation = this.db.transaction(() => {
       const card = this.buildCard(cardId);
+      this.requireCardNotFrozen(card);
       if (card.column !== request.from_column) {
         throw new HttpError(
           409,
@@ -176,6 +181,8 @@ export class SQLiteKanbanStore implements KanbanStore {
         {
           from: request.from_column,
           to: request.to_column,
+          from_state: request.from_column,
+          to_state: request.to_column,
           decision_summary: request.decision_summary,
           artifacts,
         },
@@ -190,6 +197,7 @@ export class SQLiteKanbanStore implements KanbanStore {
   addSignal(cardId: string, actor: Actor, payload: unknown): SignalRecord {
     const request = validateSignalRequest(payload);
     const card = this.buildCard(cardId);
+    this.requireCardNotFrozen(card);
     requireAgentOwnership(card, actor);
 
     const at = nowIso();
@@ -236,6 +244,7 @@ export class SQLiteKanbanStore implements KanbanStore {
   ackCard(cardId: string, actor: Actor, payload: unknown): AckRecord {
     const request = validateAckRequest(payload);
     const card = this.buildCard(cardId);
+    this.requireCardNotFrozen(card);
     requireHuman(actor);
 
     const at = nowIso();
@@ -272,6 +281,7 @@ export class SQLiteKanbanStore implements KanbanStore {
   ): Card {
     const request = validateAttemptRequest(payload);
     const parent = this.buildCard(parentCardId);
+    this.requireCardNotFrozen(parent);
     requireAgentOwnership(parent, actor);
     this.ensureUniqueBranchAndWorktree(request);
 
@@ -449,6 +459,13 @@ export class SQLiteKanbanStore implements KanbanStore {
         ? (JSON.parse(row.compaction_context) as CompactionEventContext)
         : undefined,
     };
+  }
+
+
+  private requireCardNotFrozen(card: Card): void {
+    if (card.signals.some((signal) => signal.type === "self_veto")) {
+      throw new HttpError(423, `Card ${card.id} is frozen by self_veto`);
+    }
   }
 
   private ensureUniqueBranchAndWorktree(request: AttemptRequest): void {
