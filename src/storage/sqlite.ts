@@ -87,6 +87,22 @@ export class SQLiteKanbanStore implements KanbanStore {
     }));
   }
 
+  getBoardVetos(): BoardVeto[] {
+    const rows = this.db
+      .prepare("SELECT * FROM board_veto WHERE active = 1 ORDER BY scope ASC")
+      .all();
+    return rows.map((row: any) => ({
+      active: Boolean(row.active),
+      at: row.at,
+      actor: {
+        kind: row.actor_kind as Actor["kind"],
+        id: row.actor_id,
+      },
+      reason: row.reason,
+      scope: row.scope,
+    }));
+  }
+
   logStagingDeployAudit(
     actor: Actor,
     cardId: string,

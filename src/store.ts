@@ -18,6 +18,7 @@ import {
   type TransitionRecord,
   type TransitionRequest,
   type VetoRequest,
+  type VetoScope,
   type AuditEventType,
   type AuditRecord,
   type CompactionEventContext,
@@ -215,10 +216,29 @@ export function validateAttemptRequest(value: unknown): AttemptRequest {
 
 export function validateVetoRequest(value: unknown): VetoRequest {
   const record = assertObject(value, "veto request");
+  const scope = assertString(record.scope, "scope");
   return {
     reason: assertString(record.reason, "reason"),
-    scope: assertString(record.scope, "scope"),
+    scope: parseVetoScope(scope),
   };
+}
+
+export function parseVetoScope(scope: string): VetoScope {
+  if (scope === "all") {
+    return scope;
+  }
+  if (scope.startsWith("column:")) {
+    const column = scope.slice("column:".length);
+    return `column:${assertEnum(column, CARD_COLUMNS, "scope column")}`;
+  }
+  if (scope.startsWith("agent:")) {
+    const agentId = scope.slice("agent:".length).trim();
+    if (!agentId) {
+      throw new HttpError(400, "scope agent must be a non-empty string");
+    }
+    return `agent:${agentId}`;
+  }
+  throw new HttpError(400, "scope must be all, column:{column}, or agent:{id}");
 }
 
 export class InMemoryKanbanStore implements KanbanStore {
@@ -228,6 +248,7 @@ export class InMemoryKanbanStore implements KanbanStore {
     this.state = {
       cards: new Map(seedCards.map((card) => [card.id, structuredClone(card)])),
       audit: [],
+      boardVetos: new Map(),
     };
   }
 
@@ -250,6 +271,10 @@ export class InMemoryKanbanStore implements KanbanStore {
 
   getAudits(): AuditRecord[] {
     return this.state.audit.map((entry) => structuredClone(entry));
+  }
+
+  getBoardVetos(): BoardVeto[] {
+    return Array.from(this.state.boardVetos.values()).map((entry) => structuredClone(entry));
   }
 
   logStagingDeployAudit(
@@ -452,7 +477,7 @@ export class InMemoryKanbanStore implements KanbanStore {
       reason: request.reason,
       scope: request.scope,
     };
-    this.state.boardVeto = veto;
+    this.state.boardVetos.set(veto.scope, veto);
 
     this.logAudit("veto", actor, undefined, {
       reason: request.reason,
@@ -466,6 +491,7 @@ export interface KanbanStore {
   listCards(filters: { agentId?: string; columns?: string[] }): Card[];
   getCard(cardId: string): Card;
   getAudits(): AuditRecord[];
+  getBoardVetos(): BoardVeto[];
   logStagingDeployAudit(
     actor: Actor,
     cardId: string,

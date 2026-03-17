@@ -129,6 +129,11 @@ export interface BoardVeto {
   scope: string;
 }
 
+export type VetoScope =
+  | "all"
+  | `column:${CardColumn}`
+  | `agent:${string}`;
+
 export type AuditEventType =
   | "transition"
   | "signal"
@@ -172,11 +177,11 @@ export interface AttemptRequest {
 
 export interface VetoRequest {
   reason: string;
-  scope: string;
+  scope: VetoScope;
 }
 
 export interface AppState {
   cards: Map<string, Card>;
   audit: AuditRecord[];
-  boardVeto?: BoardVeto;
+  boardVetos: Map<string, BoardVeto>;
 }

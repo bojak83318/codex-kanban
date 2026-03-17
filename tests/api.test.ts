@@ -412,14 +412,15 @@ describe("codex-kanban api", () => {
         }),
       });
 
-      await app.request("/api/v1/board/veto", {
+      const veto = await app.request("/api/v1/board/veto", {
         method: "POST",
         headers: HUMAN_AUTH_HEADER,
         body: JSON.stringify({
           reason: "Hold for release planning",
-          scope: "integration",
+          scope: "column:integration",
         }),
       });
+      expect(veto.status).toBe(200);
 
       const audits = app.store.getAudits();
       expect(audits).toHaveLength(4);
