@@ -10,3 +10,5 @@ export {
   type SingleAgentSpawnConfig,
   type SingleAgentSpawnPlan,
 } from "./orchestrator/single-agent.js";
+
+export { MCPSecretsServerStub, type StagingDeployRequest, type StagingDeployTicket } from "./mcp/secrets-server.js";

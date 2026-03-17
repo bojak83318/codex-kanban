@@ -439,6 +439,134 @@ describe("codex-kanban api", () => {
     });
   });
 
+
+
+  test("self_veto freezes subsequent tool calls", async () => {
+    const app = await startServer([seedCard()]);
+
+    try {
+      const vetoSignal = await app.request("/api/v1/cards/T-42/signals", {
+        method: "POST",
+        headers: AGENT_AUTH_HEADER,
+        body: JSON.stringify({
+          type: "self_veto",
+          reason: "Unsafe execution path detected",
+        }),
+      });
+      expect(vetoSignal.status).toBe(201);
+
+      const blockedAttempt = await app.request("/api/v1/cards/T-42/attempts", {
+        method: "POST",
+        headers: AGENT_AUTH_HEADER,
+        body: JSON.stringify({
+          attempt_index: 2,
+          strategy: "direct_impl",
+          branch: "vk/T-42-post-veto",
+          worktree_path: "./agents/T-42-post-veto",
+        }),
+      });
+      expect(blockedAttempt.status).toBe(423);
+
+      const blockedTransition = await app.request("/api/v1/cards/T-42/transition", {
+        method: "POST",
+        headers: AGENT_AUTH_HEADER,
+        body: JSON.stringify({
+          from_column: "in_progress",
+          to_column: "human_review",
+          decision_summary: {
+            action: "Continue despite veto",
+            logic_chain: "Should be blocked",
+            projected_impact: "Unsafe",
+            reversible: true,
+          },
+        }),
+      });
+      expect(blockedTransition.status).toBe(423);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test("red-team: request_staging_deploy cannot exfiltrate credentials", async () => {
+    const app = await startServer([
+      seedCard({
+        column: "integration",
+        latest_ack: {
+          at: new Date().toISOString(),
+          actor: { kind: "human", id: "reviewer-1" },
+          verdict: "approve",
+        },
+      }),
+    ]);
+
+    try {
+      const response = await app.request("/api/v1/mcp/request_staging_deploy", {
+        method: "POST",
+        headers: AGENT_AUTH_HEADER,
+        body: JSON.stringify({
+          card_id: "T-42",
+          target_env: "staging",
+        }),
+      });
+
+      expect(response.status).toBe(202);
+      expect(response.body.ticket.tool).toBe("request_staging_deploy");
+      expect(response.body.ticket).not.toHaveProperty("credentials");
+      expect(JSON.stringify(response.body)).not.toContain("token");
+      expect(JSON.stringify(response.body)).not.toContain("secret");
+    } finally {
+      await app.close();
+    }
+  });
+
+  test("red-team: request_staging_deploy is blocked outside integration column", async () => {
+    const app = await startServer([
+      seedCard({
+        column: "human_review",
+        latest_ack: {
+          at: new Date().toISOString(),
+          actor: { kind: "human", id: "reviewer-1" },
+          verdict: "approve",
+        },
+      }),
+    ]);
+
+    try {
+      const response = await app.request("/api/v1/mcp/request_staging_deploy", {
+        method: "POST",
+        headers: AGENT_AUTH_HEADER,
+        body: JSON.stringify({
+          card_id: "T-42",
+        }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error).toContain("integration column");
+    } finally {
+      await app.close();
+    }
+  });
+
+  test("red-team: agent self-ACK attempts are rejected", async () => {
+    const app = await startServer([seedCard()]);
+
+    try {
+      const response = await app.request("/api/v1/cards/T-42/ack", {
+        method: "POST",
+        headers: AGENT_AUTH_HEADER,
+        body: JSON.stringify({
+          verdict: "approve",
+          notes: "self-approval attack",
+        }),
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toContain("Human identity required");
+    } finally {
+      await app.close();
+    }
+  });
+
   test("requires a valid bearer token for card queries", async () => {
     const app = await startServer([seedCard()]);
 
@@ -449,7 +577,7 @@ describe("codex-kanban api", () => {
       const invalid = await app.request("/api/v1/cards", {
         headers: { Authorization: "Bearer missing-token" },
       });
-      expect(invalid.status).toBe(403);
+      expect(invalid.status).toBe(401);
     } finally {
       await app.close();
     }

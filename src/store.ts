@@ -120,6 +120,16 @@ export function requireHuman(actor: Actor): void {
   }
 }
 
+function isCardFrozen(card: Card): boolean {
+  return card.signals.some((signal) => signal.type === "self_veto");
+}
+
+function requireCardNotFrozen(card: Card): void {
+  if (isCardFrozen(card)) {
+    throw new HttpError(423, `Card ${card.id} is frozen by self_veto`);
+  }
+}
+
 export function validateDecisionSummary(value: unknown): DecisionSummary {
   const record = assertObject(value, "decision_summary");
   return {
@@ -233,6 +243,11 @@ export class InMemoryKanbanStore implements KanbanStore {
     return cards.map((card) => structuredClone(card));
   }
 
+  getCard(cardId: string): Card {
+    const card = requireCard(this.state, cardId);
+    return structuredClone(card);
+  }
+
   getAudits(): AuditRecord[] {
     return this.state.audit.map((entry) => structuredClone(entry));
   }
@@ -256,6 +271,7 @@ export class InMemoryKanbanStore implements KanbanStore {
   transitionCard(cardId: string, actor: Actor, payload: unknown): Card {
     const request = validateTransitionRequest(payload);
     const card = requireCard(this.state, cardId);
+    requireCardNotFrozen(card);
     if (card.column !== request.from_column) {
       throw new HttpError(
         409,
@@ -309,6 +325,8 @@ export class InMemoryKanbanStore implements KanbanStore {
     this.logAudit("transition", actor, card.id, {
       from: request.from_column,
       to: request.to_column,
+      from_state: request.from_column,
+      to_state: request.to_column,
       decision_summary: request.decision_summary,
     });
     return structuredClone(card);
@@ -317,6 +335,7 @@ export class InMemoryKanbanStore implements KanbanStore {
   addSignal(cardId: string, actor: Actor, payload: unknown): SignalRecord {
     const request = validateSignalRequest(payload);
     const card = requireCard(this.state, cardId);
+    requireCardNotFrozen(card);
     requireAgentOwnership(card, actor);
     const signal: SignalRecord = {
       at: nowIso(),
@@ -346,6 +365,7 @@ export class InMemoryKanbanStore implements KanbanStore {
     requireHuman(actor);
     const request = validateAckRequest(payload);
     const card = requireCard(this.state, cardId);
+    requireCardNotFrozen(card);
     const ack: AckRecord = {
       at: nowIso(),
       actor,
@@ -364,6 +384,7 @@ export class InMemoryKanbanStore implements KanbanStore {
   createAttempt(parentCardId: string, actor: Actor, payload: unknown): Card {
     const request = validateAttemptRequest(payload);
     const parent = requireCard(this.state, parentCardId);
+    requireCardNotFrozen(parent);
     requireAgentOwnership(parent, actor);
     this.ensureUniqueBranchAndWorktree(request);
 
@@ -428,6 +449,7 @@ export class InMemoryKanbanStore implements KanbanStore {
 
 export interface KanbanStore {
   listCards(filters: { agentId?: string; columns?: string[] }): Card[];
+  getCard(cardId: string): Card;
   getAudits(): AuditRecord[];
   transitionCard(cardId: string, actor: Actor, payload: unknown): Card;
   addSignal(cardId: string, actor: Actor, payload: unknown): SignalRecord;
