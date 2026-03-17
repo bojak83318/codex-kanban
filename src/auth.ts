@@ -113,11 +113,16 @@ export function buildTokenRegistryFromEnv(): TokenRegistry {
   return new TokenRegistry(readJwtSecretFromEnv());
 }
 
-export const DEFAULT_AGENT_TOKEN_VALUE = signJwt(
-  { kind: "agent", id: DEFAULT_AGENT_ID },
-  readJwtSecretFromEnv() ?? "missing-kanban-jwt-secret",
-);
-export const DEFAULT_HUMAN_TOKEN_VALUE = signJwt(
-  { kind: "human", id: DEFAULT_HUMAN_ID },
-  readJwtSecretFromEnv() ?? "missing-kanban-jwt-secret",
-);
+export function DEFAULT_AGENT_TOKEN_VALUE(): string {
+  return signJwt(
+    { kind: "agent", id: DEFAULT_AGENT_ID },
+    requireJwtSecret(readJwtSecretFromEnv()),
+  );
+}
+
+export function DEFAULT_HUMAN_TOKEN_VALUE(): string {
+  return signJwt(
+    { kind: "human", id: DEFAULT_HUMAN_ID },
+    requireJwtSecret(readJwtSecretFromEnv()),
+  );
+}

@@ -16,10 +16,10 @@ function seedCard(overrides: Partial<Card> = {}): Card {
 }
 
 const AGENT_AUTH_HEADER = {
-  Authorization: `Bearer ${DEFAULT_AGENT_TOKEN_VALUE}`,
+  Authorization: `Bearer ${DEFAULT_AGENT_TOKEN_VALUE()}`,
 };
 const HUMAN_AUTH_HEADER = {
-  Authorization: `Bearer ${DEFAULT_HUMAN_TOKEN_VALUE}`,
+  Authorization: `Bearer ${DEFAULT_HUMAN_TOKEN_VALUE()}`,
 };
 
 const COMPACTION_PROGRESS_MD = `

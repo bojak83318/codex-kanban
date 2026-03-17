@@ -6,10 +6,10 @@ import { buildSingleAgentSpawnPlan } from "../../src/orchestrator/single-agent.j
 import type { Card } from "../../src/types.js";
 
 const AGENT_AUTH_HEADER = {
-  Authorization: `Bearer ${DEFAULT_AGENT_TOKEN_VALUE}`,
+  Authorization: `Bearer ${DEFAULT_AGENT_TOKEN_VALUE()}`,
 };
 const HUMAN_AUTH_HEADER = {
-  Authorization: `Bearer ${DEFAULT_HUMAN_TOKEN_VALUE}`,
+  Authorization: `Bearer ${DEFAULT_HUMAN_TOKEN_VALUE()}`,
 };
 
 function seedCard(overrides: Partial<Card> = {}): Card {
