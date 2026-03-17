@@ -5,5 +5,8 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["tests/**/*.test.ts"],
+    env: {
+      KANBAN_JWT_SECRET: "test-secret",
+    },
   },
 });
