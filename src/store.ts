@@ -255,10 +255,13 @@ export class InMemoryKanbanStore implements KanbanStore {
   logStagingDeployAudit(
     actor: Actor,
     cardId: string,
+    fromState: CardColumn,
     targetEnv: string,
     ticketId: string,
   ): void {
     this.logAudit("staging_deploy_requested", actor, cardId, {
+      from_state: fromState,
+      to_state: "staging_deploy_requested",
       target_env: targetEnv,
       ticket_id: ticketId,
     });
@@ -466,6 +469,7 @@ export interface KanbanStore {
   logStagingDeployAudit(
     actor: Actor,
     cardId: string,
+    fromState: CardColumn,
     targetEnv: string,
     ticketId: string,
   ): void;

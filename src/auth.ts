@@ -49,12 +49,22 @@ function parseJwt(token: string, secret: string): JwtPayload {
     throw new HttpError(403, "Invalid auth token signature");
   }
 
-  const header = JSON.parse(base64UrlDecode(headerB64));
+  let header: Record<string, unknown>;
+  try {
+    header = JSON.parse(base64UrlDecode(headerB64)) as Record<string, unknown>;
+  } catch {
+    throw new HttpError(401, "Malformed JWT token");
+  }
   if (header.alg !== "HS256" || header.typ !== "JWT") {
     throw new HttpError(401, "Unsupported JWT header");
   }
 
-  const payload = JSON.parse(base64UrlDecode(payloadB64)) as Partial<JwtPayload>;
+  let payload: Partial<JwtPayload>;
+  try {
+    payload = JSON.parse(base64UrlDecode(payloadB64)) as Partial<JwtPayload>;
+  } catch {
+    throw new HttpError(401, "Malformed JWT token");
+  }
   if (!payload.sub || (payload.kind !== "agent" && payload.kind !== "human")) {
     throw new HttpError(401, "Invalid JWT claims");
   }

@@ -56,6 +56,7 @@ export class MCPSecretsServerStub {
     this.store.logStagingDeployAudit(
       actor,
       card.id,
+      card.column,
       request.target_env,
       ticket.ticket_id,
     );
